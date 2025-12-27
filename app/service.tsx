@@ -1,44 +1,42 @@
+// app/service.tsx
 import { useRouter } from 'expo-router';
 import { doc, getDocs, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { Button, ScrollView, Text, View } from 'react-native';
-import { leadsCol } from '../database/db';
+import {
+  Button,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { clientsCol, db } from '../database/db';
 
-
-
-type ServiceClient = {
+type Client = {
   id: string;
+  date?: string;
   name: string;
-  neighbourhood?: string;
+  neighborhood?: string;
+  phone?: number;
   system_size?: number;
   stage?: string;
 };
 
 export default function ServiceScreen() {
-  const [clients, setClients] = useState<ServiceClient[]>([]);
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
-  
-  const loadServiceClients = async () => {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadClients = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(leadsCol);
-      const raw = snap.docs.map(d => ({
-        id: d.id,
-        ...(d.data() as any),
+      const snapshot = await getDocs(clientsCol);
+      const data: Client[] = snapshot.docs.map(d => ({
+        id: d.id,  ...(d.data() as any),
+      
       }));
-
-      const inService = raw
-        .filter(c => c.stage === 'service')
-        .map(c => ({
-          id: c.id,
-          name: c.name || 'No name',
-          neighbourhood: c.neighbourhood,
-          system_size: c.system_size,
-          stage: c.stage,
-        }));
-
-      setClients(inService);
+      
+      // só quem está no estágio "service"
+      setClients(data.filter(c => c.stage === 'service'));
     } catch (err) {
       console.error('Error loading service clients:', err);
     } finally {
@@ -46,39 +44,18 @@ export default function ServiceScreen() {
     }
   };
 
-  const moveToContract = async (leadId: string) => {
+  const moveClientStage = async (clientId: string, newStage: string) => {
     try {
-      const ref = doc(leadsCol.firestore, 'leads', leadId);
-      await updateDoc(ref, { stage: 'contract' });
-      await loadServiceClients();
+      const ref = doc(db, 'clients', clientId);
+      await updateDoc(ref, { stage: newStage });
+      await loadClients();
     } catch (err) {
-      console.error('Error moving client back to contract:', err);
+      console.error('Error moving client stage:', err);
     }
   };
-
-  const moveToBilling = async (leadId: string) => {
-    try {
-      const ref = doc(leadsCol.firestore, 'leads', leadId);
-      await updateDoc(ref, { stage: 'billing' });
-      await loadServiceClients();
-    } catch (err) {
-      console.error('Error moving client to billing:', err);
-    }
-  };
-
-  const updateStage = async (leadId: string, stage: string) => {
-    try {
-      const ref = doc(leadsCol, leadId);
-      await updateDoc(ref, { stage });
-      await loadServiceClients();
-    } catch (err) {
-      console.error('Error updating stage:', err);
-    }
-  };
-
 
   useEffect(() => {
-    loadServiceClients();
+    loadClients();
   }, []);
 
   return (
@@ -90,69 +67,97 @@ export default function ServiceScreen() {
         paddingBottom: 40,
       }}
     >
-      <Text style={{ fontSize: 22, marginBottom: 16 }}>
-        Service – solarapp
-        
-        <View style={{ flexDirection: 'row', marginBottom: 16 }}>
-          <View style={{ marginRight: 8 }}>
-            <Button
-              title="CONTRACT"
-              onPress={() => router.push('/contract')}
-            />
-          </View>
-          <View>
-            <Button
-              title="BILLING"
-              onPress={() => router.push('/billing')}
-            />
-          </View>
-        </View>
-      
-      </Text>
+ <Text style={{ fontSize: 22, marginBottom: 16,  textAlign: 'center', fontWeight: 'bold', }}>
+         SERVICE
+       </Text>
 
-      <Text style={{ fontSize: 16, marginBottom: 8 }}>
+      {/* NAV: CONTRACT / BILLING */}
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          marginBottom: 16,
+        }}
+      >
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Button title="CONTRACT" onPress={() => router.push('/contracts')} />
+        </View>
+        <View style={{ flex: 1, marginLeft: 8 }}>
+          <Button title="BILLING" onPress={() => router.push('/billing')} />
+        </View>
+      </View>
+
+      <Text style={{ fontSize: 18, marginBottom: 8 }}>
         Clients in Service stage:
       </Text>
 
       {loading && <Text>Loading...</Text>}
 
+      {!loading && clients.length === 0 && (
+        <Text>No clients in Service stage.</Text>
+      )}
+
       {!loading &&
         clients.map(client => (
-          <View key={client.id} style={{ marginBottom: 16 }}>
-            <Text style={{ fontWeight: 'bold' }}>
-              {client.name}
-              {client.system_size ? ` – ${client.system_size} kW` : ''}
-            </Text>
-            {client.neighbourhood ? (
-              <Text>{client.neighbourhood}</Text>
-            ) : null}
+          <View key={client.id} style={{ marginBottom: 12 }}>
+            {/* tap → edit client */}
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: '/clients/[id]',
+                  params: { id: client.id },
+                })
+              }
+            >
+              {/* Linha 1: neighbourhood + id */}
+              <Text style={{ fontWeight: 'bold' }}>
+                {(client.neighborhood || 'No neighbourhood') +
+                  ' – ' +
+                  client.id}
+              </Text>
 
+              {/* Linha 2: desired date */}
+              <Text>Desired date: {client.date || '-'}</Text>
+
+              {/* Linha 3: system size */}
+              <Text>
+                System size:{' '}
+                {client.system_size != null
+                  ? `${client.system_size} kW`
+                  : '-'}
+              </Text>
+
+              {/* Linha 4: phone */}
+              <Text>
+                Phone:{' '}
+                {client.phone != null && client.phone !== undefined
+                  ? String(client.phone)
+                  : '-'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* BOTÕES DE STAGE: VOLTAR E AVANÇAR */}
             <View
               style={{
                 flexDirection: 'row',
-                marginTop: 8,
+                marginTop: 4,
               }}
             >
-              <View style={{ marginRight: 8 }}>
+              <View style={{ flex: 1, marginRight: 4 }}>
                 <Button
-                  title="Move Contract"
-                  onPress={() => updateStage(client.id, 'contract')}
+                  title="Move: contract"
+                  onPress={() => moveClientStage(client.id, 'contract')}
                 />
               </View>
-              <View>
+              <View style={{ flex: 1, marginLeft: 4 }}>
                 <Button
-                  title="Move Billing"
-                  onPress={() => updateStage(client.id, 'billing')}
+                  title="Move: billing"
+                  onPress={() => moveClientStage(client.id, 'billing')}
                 />
               </View>
             </View>
           </View>
         ))}
-
-
-      {!loading && clients.length === 0 && (
-        <Text>No clients in Service stage yet.</Text>
-      )}
     </ScrollView>
   );
 }

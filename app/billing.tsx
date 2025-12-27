@@ -2,44 +2,40 @@
 import { useRouter } from 'expo-router';
 import { doc, getDocs, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { Button, ScrollView, Text, View } from 'react-native';
-import { leadsCol } from '../database/db';
+import {
+  Button,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { clientsCol, db } from '../database/db';
 
-
-type BillingClient = {
+type Client = {
   id: string;
+  date?: string;
   name: string;
-  neighbourhood?: string;
+  neighborhood?: string;
+  phone?: number;
   system_size?: number;
   stage?: string;
 };
 
 export default function BillingScreen() {
-  const [clients, setClients] = useState<BillingClient[]>([]);
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(false);
 
-
-  const loadBillingClients = async () => {
+  const loadClients = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(leadsCol);
-      const raw = snap.docs.map(d => ({
+      const snapshot = await getDocs(clientsCol);
+      const data: Client[] = snapshot.docs.map(d => ({
         id: d.id,
         ...(d.data() as any),
       }));
-
-      const inBilling = raw
-        .filter(c => c.stage === 'billing')
-        .map(c => ({
-          id: c.id,
-          name: c.name || 'No name',
-          neighbourhood: c.neighbourhood,
-          system_size: c.system_size,
-          stage: c.stage,
-        }));
-
-      setClients(inBilling);
+      // só estágio "billing"
+      setClients(data.filter(c => c.stage === 'billing'));
     } catch (err) {
       console.error('Error loading billing clients:', err);
     } finally {
@@ -47,18 +43,18 @@ export default function BillingScreen() {
     }
   };
 
-    const updateStage = async (leadId: string, stage: string) => {
-        try {
-            const ref = doc(leadsCol, leadId);
-            await updateDoc(ref, { stage });
-            await loadBillingClients();
-        } catch (err) {
-            console.error('Error updating stage:', err);
-        }
-    };
+  const moveClientStage = async (clientId: string, newStage: string) => {
+    try {
+      const ref = doc(db, 'clients', clientId);
+      await updateDoc(ref, { stage: newStage });
+      await loadClients();
+    } catch (err) {
+      console.error('Error moving client stage:', err);
+    }
+  };
 
   useEffect(() => {
-    loadBillingClients();
+    loadClients();
   }, []);
 
   return (
@@ -70,68 +66,100 @@ export default function BillingScreen() {
         paddingBottom: 40,
       }}
     >
-      <Text style={{ fontSize: 22, marginBottom: 16 }}>
-        Billing – solarapp
-      </Text>
+      <Text style={{ fontSize: 22, marginBottom: 16,  textAlign: 'center', fontWeight: 'bold', }}>
+              BILLING
+            </Text>
 
-        <View style={{ flexDirection: 'row', marginBottom: 16 }}>
-            <View style={{ marginRight: 8 }}>
-                <Button
-                title="SERVICE"
-                onPress={() => router.push('/service')}
-                />
-            </View>
-            <View>
-                <Button
-                title="AFTER-SALES"
-                onPress={() => router.push('/afterSales')}
-                />
-            </View>
+      {/* NAV: SERVICE / AFTER SALES */}
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          marginBottom: 16,
+        }}
+      >
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Button title="SERVICE" onPress={() => router.push('/service')} />
         </View>
+        <View style={{ flex: 1, marginLeft: 8 }}>
+          <Button
+            title="AFTER SALES"
+            onPress={() => router.push('/afterSales')}
+          />
+        </View>
+      </View>
 
-      <Text style={{ fontSize: 16, marginBottom: 8 }}>
+      <Text style={{ fontSize: 18, marginBottom: 8 }}>
         Clients in Billing stage:
       </Text>
 
       {loading && <Text>Loading...</Text>}
 
+      {!loading && clients.length === 0 && (
+        <Text>No clients in Billing stage.</Text>
+      )}
+
       {!loading &&
         clients.map(client => (
-            <View key={client.id} style={{ marginBottom: 16 }}>
-            <Text style={{ fontWeight: 'bold' }}>
-                {client.name}
-                {client.system_size ? ` – ${client.system_size} kW` : ''}
-            </Text>
-            {client.neighbourhood ? (
-                <Text>{client.neighbourhood}</Text>
-            ) : null}
-
-            <View
-                style={{
-                flexDirection: 'row',
-                marginTop: 8,
-                }}
+          <View key={client.id} style={{ marginBottom: 12 }}>
+            {/* tap → edit client */}
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: '/clients/[id]',
+                  params: { id: client.id },
+                })
+              }
             >
-                <View style={{ marginRight: 8 }}>
+              {/* Linha 1: neighbourhood + id */}
+              <Text style={{ fontWeight: 'bold' }}>
+                {(client.neighborhood || 'No neighbourhood') +
+                  ' – ' +
+                  client.id}
+              </Text>
+
+              {/* Linha 2: desired date */}
+              <Text>Desired date: {client.date || '-'}</Text>
+
+              {/* Linha 3: system size */}
+              <Text>
+                System size:{' '}
+                {client.system_size != null
+                  ? `${client.system_size} kW`
+                  : '-'}
+              </Text>
+
+              {/* Linha 4: phone */}
+              <Text>
+                Phone:{' '}
+                {client.phone != null && client.phone !== undefined
+                  ? String(client.phone)
+                  : '-'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* BOTÕES DE STAGE: VOLTAR E AVANÇAR */}
+            <View
+              style={{
+                flexDirection: 'row',
+                marginTop: 4,
+              }}
+            >
+              <View style={{ flex: 1, marginRight: 4 }}>
                 <Button
-                    title="Move Service"
-                    onPress={() => updateStage(client.id, 'service')}
+                  title="Move: service"
+                  onPress={() => moveClientStage(client.id, 'service')}
                 />
-                </View>
-                <View>
+              </View>
+              <View style={{ flex: 1, marginLeft: 4 }}>
                 <Button
-                    title="Move After-sales"
-                    onPress={() => updateStage(client.id, 'after_sales')}
+                  title="Move: afterSales"
+                  onPress={() => moveClientStage(client.id, 'afterSales')}
                 />
-                </View>
+              </View>
             </View>
-            </View>
+          </View>
         ))}
-
-
-      {!loading && clients.length === 0 && (
-        <Text>No clients in Billing stage yet.</Text>
-      )}
     </ScrollView>
   );
 }

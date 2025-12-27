@@ -1,4 +1,4 @@
-// app/aftersales.tsx
+// app/contract.tsx
 import { useRouter } from 'expo-router';
 import { doc, getDocs, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
@@ -21,7 +21,7 @@ type Client = {
   stage?: string;
 };
 
-export default function AfterSalesScreen() {
+export default function ContractScreen() {
   const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
@@ -34,10 +34,10 @@ export default function AfterSalesScreen() {
         id: d.id,
         ...(d.data() as any),
       }));
-      // só estágio "afterSales"
-      setClients(data.filter(c => c.stage === 'afterSales'));
+      // só quem está no estágio "contract"
+      setClients(data.filter(c => c.stage === 'contract'));
     } catch (err) {
-      console.error('Error loading after-sales clients:', err);
+      console.error('Error loading contract clients:', err);
     } finally {
       setLoading(false);
     }
@@ -67,30 +67,33 @@ export default function AfterSalesScreen() {
       }}
     >
       <Text style={{ fontSize: 22, marginBottom: 16,  textAlign: 'center', fontWeight: 'bold', }}>
-              AFTER-SALES
+              CONTRACTS
             </Text>
 
-      {/* NAV: BILLING */}
+      {/* NAV: VISIT / SERVICE */}
       <View
         style={{
           flexDirection: 'row',
-          justifyContent: 'flex-start',
+          justifyContent: 'space-between',
           marginBottom: 16,
         }}
       >
         <View style={{ flex: 1, marginRight: 8 }}>
-          <Button title="BILLING" onPress={() => router.push('/billing')} />
+          <Button title="VISIT" onPress={() => router.push('/visits')} />
+        </View>
+        <View style={{ flex: 1, marginLeft: 8 }}>
+          <Button title="SERVICE" onPress={() => router.push('/service')} />
         </View>
       </View>
 
       <Text style={{ fontSize: 18, marginBottom: 8 }}>
-        Clients in After Sales stage:
+        Clients in Contract stage:
       </Text>
 
       {loading && <Text>Loading...</Text>}
 
       {!loading && clients.length === 0 && (
-        <Text>No clients in After Sales stage.</Text>
+        <Text>No clients in Contract stage.</Text>
       )}
 
       {!loading &&
@@ -132,7 +135,7 @@ export default function AfterSalesScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* BOTÃO DE STAGE: VOLTAR (apenas) */}
+            {/* BOTÕES DE STAGE: VOLTAR E AVANÇAR */}
             <View
               style={{
                 flexDirection: 'row',
@@ -141,8 +144,14 @@ export default function AfterSalesScreen() {
             >
               <View style={{ flex: 1, marginRight: 4 }}>
                 <Button
-                  title="Move: billing"
-                  onPress={() => moveClientStage(client.id, 'billing')}
+                  title="Move: visit"
+                  onPress={() => moveClientStage(client.id, 'visit')}
+                />
+              </View>
+              <View style={{ flex: 1, marginLeft: 4 }}>
+                <Button
+                  title="Move: service"
+                  onPress={() => moveClientStage(client.id, 'service')}
                 />
               </View>
             </View>
